@@ -2,6 +2,8 @@
 
 ## Operating System
 
+https://drive.google.com/file/d/1EpvvD9CTQfaOCyBIWGYbDB_iWHbODE2R/view?usp=drive_link
+
 ### What is an operating system?
 - An operating system (OS) is software that manages computer hardware resources and provides services for computer programs.
 - It acts as an intermediary between the hardware and software, allowing applications to run efficiently and enabling users to interact with the computer.
