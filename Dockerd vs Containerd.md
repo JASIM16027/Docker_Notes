@@ -1,19 +1,30 @@
-When you pull an image from Docker Hub, the process is a coordinated effort where dockerd acts as the orchestrator and containerd acts as the manager of the actual content. [1] 
-Here is the breakdown of the process:
-## 1. The Architecture Roles
+---
 
-* dockerd (Docker Daemon): The high-level interface. It handles API requests, authentication with Docker Hub, and manages high-level features like networking and volumes.
-* containerd: The industry-standard container runtime. It manages the entire container lifecycle, including image transfer, storage, and execution.
+## Docker Pull এর পেছনে কী হয়?
 
-## 2. The Step-by-Step Pull Flow
-When you run docker pull nginx:latest:
+Docker Hub থেকে image pull করা মানে শুধু একটা command চালানো না — এটা আসলে দুইটা component এর মধ্যে একটা **handoff**: **dockerd** পুরো process টা orchestrate করে, আর **containerd** actual কাজটা করে।
 
-   1. CLI to dockerd: The Docker CLI sends a REST API request to the dockerd daemon.
-   2. dockerd to Registry: dockerd communicates with Docker Hub to check for the image, handle credentials, and initiate the download.
-   3. dockerd to containerd: While dockerd initiates the pull, it instructs containerd to actually fetch the image layers.
-   4. Content Management: containerd pulls the layers, unpacks them into a snapshotter (filesystem), and stores them in its internal content store. [2, 3] 
+### দুইজন খেলোয়াড়
 
-## Summary
+**dockerd** (Docker Daemon) হলো high-level interface। এটা incoming API requests handle করে, Docker Hub এর সাথে authentication করে, এবং networking ও volumes এর মতো বড় বিষয়গুলো দেখাশোনা করে।
 
-* Initiator & Authenticator: dockerd
-* Manager of Layers & Storage: containerd
+**containerd** হলো dockerd এর নিচে কাজ করা industry-standard container runtime। এটা container এর পুরো lifecycle এর মালিক — image transfer, storage, এবং execution সব কিছু এর হাতে।
+
+### `docker pull nginx:latest` চালালে কী হয়?
+
+**Step 1 — CLI → dockerd:** Docker CLI একটা REST API request পাঠায় dockerd daemon এর কাছে।
+
+**Step 2 — dockerd → Registry:** dockerd, Docker Hub এর সাথে যোগাযোগ করে image খোঁজে, credentials যাচাই করে, এবং download শুরু করে।
+
+**Step 3 — dockerd → containerd:** Authentication শেষ হলে, dockerd actual fetch operation টা containerd এর হাতে তুলে দেয়।
+
+**Step 4 — Content Management:** containerd image layers গুলো pull করে, একটা snapshotter filesystem এ unpack করে, এবং নিজের internal content store এ save করে রাখে।
+
+### কে কী করে?
+
+| কাজ | কে করে |
+|---|---|
+| API handling ও authentication | dockerd |
+| Layer fetching ও storage | containerd |
+
+সহজ কথায়: **dockerd দরজা খোলে, আর containerd সব কিছু ভেতরে নিয়ে যায়।**
