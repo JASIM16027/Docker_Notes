@@ -1,5 +1,6 @@
 # Docker Engine Internals
 
+
 ---
 
 ## 1. Docker Engine কি?
@@ -227,3 +228,29 @@ User types command
 ---
 
 *Docker Engine = CLI + dockerd + containerd + runc + Shim + Kernel (Namespace + Cgroups)*
+
+
+
+
+![WhatsApp Image 2026-04-09 at 10 10 05 PM](https://github.com/user-attachments/assets/b1a56297-5300-45a6-ade9-48f32ce0835c)
+
+
+![WhatsApp Image 2026-04-09 at 10 10 05 PM (2)](https://github.com/user-attachments/assets/e26943b1-b194-428d-bd9c-bfd7354f16c3)
+
+
+![WhatsApp Image 2026-04-09 at 10 10 06 PM (1)](https://github.com/user-attachments/assets/a128489f-78b5-4dd4-aad6-6a83e8e54c25)
+
+
+![WhatsApp Image 2026-04-09 at 10 10 06 PM (2)](https://github.com/user-attachments/assets/5fb502f3-d971-4075-96a4-b9b4f7db6446)
+
+![WhatsApp Image 2026-04-09 at 10 10 06 PM (3)](https://github.com/user-attachments/assets/0bf89350-4b0a-420f-967f-a7d5d909afb7)
+
+![WhatsApp Image 2026-04-09 at 10 10 06 PM (4)](https://github.com/user-attachments/assets/20ce197f-f23b-4a42-b38d-a209fdb76266)
+
+![WhatsApp Image 2026-04-09 at 10 10 07 PM](https://github.com/user-attachments/assets/433710c1-f7da-413c-9cd7-0946fdaf1fd6)
+
+
+![WhatsApp Image 2026-04-09 at 10 10 08 PM](https://github.com/user-attachments/assets/28642a42-cf5b-4379-9f67-a3fd08ce4ea4)
+
+
+![WhatsApp Image 2026-04-09 at 10 10 08 PM (2)](https://github.com/user-attachments/assets/54532f9a-39d3-45f9-a5a8-ba346a754f4d)
