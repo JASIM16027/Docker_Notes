@@ -82,3 +82,72 @@ docker compose up চালালে...
 ```
 
 > **গুরুত্বপূর্ণ:** `redis-server` আর `node-app` automatically একই network-এ থাকে — তাই Node app থেকে Redis-এ connect করতে শুধু `redis-server` নামটা use করলেই হয়, কোনো IP লাগে না!
+
+
+## Docker Compose Commands — সব এক জায়গায়
+
+### 🚀 চালু করা
+```bash
+docker compose up              # সব service চালু (foreground)
+docker compose up -d           # background-এ চালু (detached)
+docker compose up --build      # image rebuild করে চালু
+docker compose up -d --build   # rebuild + background (সবচেয়ে বেশি ব্যবহার)
+```
+
+---
+
+### 🛑 বন্ধ করা
+```bash
+docker compose down            # সব বন্ধ + network remove
+docker compose down -v         # সব বন্ধ + volume ও delete
+docker compose stop            # বন্ধ করো, কিন্তু remove করো না
+```
+
+---
+
+### 📋 Status দেখা
+```bash
+docker compose ps              # কোন container চলছে দেখো
+docker compose logs            # সব service-এর logs
+docker compose logs -f         # live logs (follow)
+docker compose logs node-app   # শুধু একটা service-এর logs
+```
+
+---
+
+### 🔁 Restart / Rebuild
+```bash
+docker compose restart              # সব restart
+docker compose restart node-app     # শুধু একটা restart
+docker compose build                # শুধু build, চালু না
+docker compose build node-app       # একটা service build
+```
+
+---
+
+### 🐚 Container-এর ভেতরে ঢোকা
+```bash
+docker compose exec node-app sh        # shell-এ ঢোকো
+docker compose exec node-app bash      # bash-এ ঢোকো
+docker compose exec redis-server redis-cli  # redis CLI
+```
+
+---
+
+### 🗑️ Cleanup
+```bash
+docker compose down --rmi all     # image ও delete
+docker compose down -v --rmi all  # সব কিছু clean
+```
+
+---
+
+### তোমার project-এ সবচেয়ে বেশি কাজে লাগবে
+
+| কাজ | Command |
+|---|---|
+| প্রথমবার চালু | `docker compose up -d --build` |
+| Code change করলে | `docker compose up -d --build` |
+| বন্ধ করতে | `docker compose down` |
+| Log দেখতে | `docker compose logs -f` |
+| Status চেক | `docker compose ps` |
