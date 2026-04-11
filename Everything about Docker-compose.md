@@ -1,4 +1,17 @@
-এই `docker-compose.yml` ফাইলটা line by line বুঝাই:
+# docker-compose.yml
+```
+version: '3'
+
+services:
+
+  redis-server:
+    image: 'redis'
+
+  node-app:
+    build: .
+    ports:
+      - "4001:8081"
+```
 
 ---
 
