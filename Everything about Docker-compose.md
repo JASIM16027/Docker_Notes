@@ -151,3 +151,49 @@ docker compose down -v --rmi all  # সব কিছু clean
 | বন্ধ করতে | `docker compose down` |
 | Log দেখতে | `docker compose logs -f` |
 | Status চেক | `docker compose ps` |
+
+
+## Docker Container Status Codes
+
+| Code | মানে |
+|---|---|
+| **0** | We exited and everything is OK |
+| **1, 2, 3, etc** | We exited because something went wrong! |
+
+---
+
+### সহজ ভাষায়
+
+**Exit Code 0 — সব ঠিকঠাক ✅**
+- Container নিজে থেকে **সফলভাবে** কাজ শেষ করে বন্ধ হয়েছে
+- কোনো error নেই
+- যেমন: `docker compose down` করলে সব container `0` দিয়ে বন্ধ হয়
+
+**Exit Code 1, 2, 3... — কিছু একটা ভুল হয়েছে ❌**
+- Container **crash** করেছে বা error-এ পড়েছে
+- যেমন:
+  - `1` → General error (code-এ bug, file not found)
+  - `2` → Misuse of command
+  - `137` → Container-কে force kill করা হয়েছে (OOM বা `kill -9`)
+
+---
+
+### কীভাবে দেখবে?
+
+```bash
+docker compose ps          # STATUS column দেখো
+
+docker inspect <container> --format='{{.State.ExitCode}}'
+```
+
+---
+
+### Real life example
+
+```
+NAME         STATUS
+node-app     Exited (0)    ✅ ঠিকমতো বন্ধ হয়েছে
+node-app     Exited (1)    ❌ কিছু একটা ভুল — logs দেখো!
+```
+
+> যদি `Exited (1)` দেখো — সাথে সাথে `docker compose logs node-app` চালাও, কারণটা ওখানেই লেখা থাকবে।
