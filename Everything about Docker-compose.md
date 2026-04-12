@@ -272,3 +272,276 @@ services:
 | Production web server | `always` |
 | Background job/worker | `on-failure` |
 | Production, manual control চাই | `unless-stopped` |
+
+
+
+# Docker Compose — বিস্তারিত গাইড
+
+## Multi-Container Apps কী?
+
+বাস্তব জীবনে একটা অ্যাপ সাধারণত একাধিক সার্ভিস নিয়ে তৈরি হয়। যেমন একটা ওয়েব অ্যাপে থাকে:
+
+- **Frontend** (React/HTML)
+- **Backend** (Node.js/Python)
+- **Database** (PostgreSQL/MySQL)
+- **Cache** (Redis)
+
+এই সবগুলো আলাদা আলাদা container এ চলে। Docker Compose দিয়ে এগুলো একসাথে manage করা যায় — একটাই `docker-compose.yml` ফাইলে সব define করো, তারপর একটাই command এ সব চালু হয়।
+
+---
+
+## docker-compose.yml এর মূল গঠন
+
+```yaml
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgres://user:pass@db:5432/mydb
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:15
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+      - POSTGRES_DB=mydb
+
+  redis:
+    image: redis:alpine
+
+volumes:
+  db_data:
+```
+
+এখন এই ফাইলটা রান করতে:
+```bash
+docker-compose up        # সব container চালু
+docker-compose up -d     # background এ চালু
+docker-compose down      # সব বন্ধ
+```
+
+---
+
+## ১. Multi-Container — Services কীভাবে কথা বলে?
+
+Container গুলো একে অপরকে **service name** দিয়ে চেনে। যেমন backend থেকে database connect করতে `localhost` লেখা যাবে না — লিখতে হবে `db` (service এর নাম)।
+
+```python
+# backend কোডে এভাবে database connect করবে
+DATABASE_URL = "postgres://user:pass@db:5432/mydb"
+#                                        ^^
+#                              এটা container এর service name
+```
+
+`depends_on` দিয়ে বলা যায় কোন service আগে চালু হবে:
+
+```yaml
+backend:
+  depends_on:
+    - db      # db চালু না হলে backend চালু হবে না
+    - redis
+```
+
+---
+
+## ২. Volumes — ডেটা কোথায় থাকে?
+
+Container বন্ধ করলে ভেতরের সব ডেটা মুছে যায়। Volumes দিয়ে ডেটা টিকিয়ে রাখা যায়।
+
+### দুই ধরনের Volume আছে:
+
+**Named Volume** — Docker নিজে manage করে, সবচেয়ে সহজ:
+
+```yaml
+services:
+  db:
+    image: postgres:15
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # db_data = volume এর নাম
+      # /var/lib/postgresql/data = container এর ভেতরে যেখানে data থাকে
+
+volumes:
+  db_data:   # এখানে declare করতে হবে
+```
+
+**Bind Mount** — তোমার computer এর folder সরাসরি container এ দেখাবে। Development এ খুব কাজে লাগে:
+
+```yaml
+services:
+  backend:
+    volumes:
+      - ./backend:/app
+      # ./backend = তোমার PC তে folder
+      # /app = container এর ভেতরে folder
+```
+
+এটার মানে হলো — তুমি `./backend` ফোল্ডারে কোড edit করলে সাথে সাথে container এর ভেতরেও বদলে যাবে। Hot reload কাজ করবে!
+
+### Volume commands:
+```bash
+docker volume ls           # সব volume দেখো
+docker volume inspect db_data   # volume এর details দেখো
+docker volume rm db_data   # volume মুছো
+```
+
+---
+
+## ৩. Networks — Container গুলো কীভাবে যুক্ত?
+
+Docker Compose automatically একটা **default network** বানায়। সব service সেই network এ থাকে, তাই তারা একে অপরকে service name দিয়ে চিনতে পারে।
+
+তবে চাইলে নিজে network বানানো যায়:
+
+```yaml
+services:
+  backend:
+    networks:
+      - app_network
+      - db_network
+
+  db:
+    networks:
+      - db_network   # শুধু db_network এ আছে
+
+  frontend:
+    networks:
+      - app_network  # শুধু app_network এ আছে
+
+networks:
+  app_network:
+  db_network:
+```
+
+এখানে frontend সরাসরি db কে access করতে **পারবে না** কারণ তারা আলাদা network এ। শুধু backend পারবে — এটাই security best practice।
+
+---
+
+## ৪. Environment Variables — Secret জিনিস কোথায় রাখবে?
+
+Database password, API key — এগুলো সরাসরি কোডে লেখা যাবে না। Environment variable ব্যবহার করতে হয়।
+
+### পদ্ধতি ১ — সরাসরি compose file এ লেখা (ছোট project এ চলে):
+
+```yaml
+services:
+  backend:
+    environment:
+      - DATABASE_URL=postgres://user:pass@db:5432/mydb
+      - JWT_SECRET=mysecretkey
+      - PORT=5000
+```
+
+### পদ্ধতি ২ — `.env` ফাইল থেকে নেওয়া (সঠিক পদ্ধতি):
+
+`.env` ফাইল বানাও:
+```
+DATABASE_URL=postgres://user:pass@db:5432/mydb
+JWT_SECRET=mysecretkey123
+PORT=5000
+```
+
+`docker-compose.yml` এ:
+```yaml
+services:
+  backend:
+    env_file:
+      - .env    # .env ফাইল থেকে সব variable নেবে
+```
+
+অথবা নির্দিষ্ট variable বেছে নেওয়া:
+```yaml
+services:
+  backend:
+    environment:
+      - DATABASE_URL=${DATABASE_URL}   # .env থেকে নেবে
+      - PORT=${PORT}
+```
+
+> ⚠️ `.env` ফাইল কখনো GitHub এ push করবে না। `.gitignore` এ add করো।
+
+---
+
+## সম্পূর্ণ উদাহরণ — Node.js + PostgreSQL + Redis
+
+```yaml
+version: '3.8'
+
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app        # hot reload এর জন্য
+    networks:
+      - app_network
+
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app         # hot reload এর জন্য
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+    networks:
+      - app_network
+      - db_network
+
+  db:
+    image: postgres:15
+    volumes:
+      - db_data:/var/lib/postgresql/data   # data টিকিয়ে রাখার জন্য
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+      - POSTGRES_DB=${DB_NAME}
+    networks:
+      - db_network
+
+  redis:
+    image: redis:alpine
+    volumes:
+      - redis_data:/data
+    networks:
+      - db_network
+
+volumes:
+  db_data:
+  redis_data:
+
+networks:
+  app_network:
+  db_network:
+```
+
+---
+
+## Quick Command চিটশিট
+
+```bash
+docker-compose up -d              # সব চালু করো (background)
+docker-compose down               # সব বন্ধ করো
+docker-compose down -v            # বন্ধ + volumes মুছো
+docker-compose logs backend       # backend এর logs দেখো
+docker-compose exec backend bash  # backend container এ ঢোকো
+docker-compose ps                 # কোন container চলছে দেখো
+docker-compose build              # image rebuild করো
+```
+
+---
+
+সহজ করে মনে রাখো — **services** মানে কোন কোন container চলবে, **volumes** মানে ডেটা কোথায় সেভ হবে, **networks** মানে কে কার সাথে কথা বলতে পারবে, আর **environment variables** মানে secret জিনিসপত্র কোথায় রাখবে।
