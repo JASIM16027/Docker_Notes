@@ -1,0 +1,272 @@
+## Docker Compose File —🐳
+
+---
+
+### আগে পুরো ছবিটা বুঝি
+
+```
+Browser
+   ↓
+nginx (port 3050) ← সব traffic এর gateway
+   ↓          ↓
+client       api ← backend
+(React)        ↓        ↓
+           postgres   redis
+           (database) (cache)
+               ↑
+            worker
+         (background job)
+```
+
+এটা একটা **Fibonacci Calculator** app —
+- `client` → React frontend
+- `api` → Express backend
+- `worker` → Background calculation
+- `postgres` → Data store
+- `redis` → Job queue
+- `nginx` → সব কিছুর সামনে দাঁড়িয়ে traffic ভাগ করে
+
+---
+
+## ১. Version
+
+```yaml
+version: "3"
+# Docker Compose file format এর version
+# Version 3 = production-ready features আছে
+# Swarm mode support, deploy config, etc.
+```
+
+---
+
+## ২. POSTGRES — Database
+
+```yaml
+services:
+  postgres:
+    # Docker Hub থেকে official postgres image নামাও
+    # latest = সবচেয়ে নতুন version (production এ specific version দেওয়া ভালো)
+    image: "postgres:latest"
+
+    environment:
+      # Postgres এর default password set করো
+      # এই password দিয়েই api connect করবে
+      - POSTGRES_PASSWORD=postgres_password
+      # Username default: postgres
+      # Database default: postgres
+      # Port default: 5432
+```
+
+> 💡 Postgres এর জন্য কোনো `volumes` নেই — মানে container বন্ধ হলে **data মুছে যাবে**। Production এ অবশ্যই volume দিতে হবে।
+
+---
+
+## ৩. REDIS — Cache & Queue
+
+```yaml
+  redis:
+    # Official Redis image — default port 6379
+    image: "redis:latest"
+    # কোনো password নেই (dev environment)
+    # কোনো volume নেই (data persist হবে না)
+    # Worker আর API এই redis এ connect করবে
+```
+
+> 💡 Redis এখানে **job queue** হিসেবে কাজ করছে।
+> - `api` → নতুন number redis এ push করে
+> - `worker` → redis থেকে number নিয়ে calculate করে result রাখে
+
+---
+
+## ৪. NGINX — Gateway / Reverse Proxy
+
+```yaml
+  nginx:
+    depends_on:
+      - api       # api চালু হওয়ার পরে nginx চালু হবে
+      - client    # client চালু হওয়ার পরে nginx চালু হবে
+      # কারণ: nginx এদের কাছে traffic পাঠায়
+      # এরা না উঠলে nginx এর কিছু করার নেই
+
+    restart: always
+    # Container crash করলে → automatically restart করো
+    # nginx হলো সবার gateway, এটা বন্ধ থাকলে কিছুই কাজ করবে না
+
+    build:
+      dockerfile: Dockerfile.dev   # nginx এর custom config আছে
+      context: ./nginx             # ./nginx/ folder এ Dockerfile আছে
+      # Custom nginx.conf দিয়ে routing rules define করা আছে
+
+    ports:
+      - "3050:80"
+      # বাম:  তোমার computer এর port 3050
+      # ডান:  nginx container এর port 80
+      # মানে: localhost:3050 → nginx container এর 80 port
+```
+
+### Nginx কী করে এখানে?
+
+```
+Browser: localhost:3050/api/values
+         ↓
+      nginx
+         ↓ /api/* → api container এ পাঠাও
+         ↓ /*     → client container এ পাঠাও
+
+# nginx.conf এ এরকম থাকে:
+location /api {
+    proxy_pass http://api:5000;
+}
+location / {
+    proxy_pass http://client:3000;
+}
+```
+
+---
+
+## ৫. API — Express Backend
+
+```yaml
+  api:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./server      # ./server/ folder এ Dockerfile আছে
+
+    volumes:
+      - /app/node_modules
+      # Container এর node_modules কে protect করো
+      # Local এর node_modules দিয়ে overwrite হবে না
+      # কারণ: container আর local OS আলাদা, modules different হতে পারে
+
+      - ./server:/app
+      # Local ./server/ folder → container এর /app/ এ sync করো
+      # তুমি server/ এ code বদলালে → container এ সাথে সাথে reflect করবে
+      # Hot reload কাজ করবে! restart লাগবে না
+
+    environment:
+      # Redis connection info
+      - REDIS_HOST=redis      # "redis" = docker compose service এর নাম
+      - REDIS_PORT=6379       # Redis এর default port
+
+      # PostgreSQL connection info
+      - PGUSER=postgres       # Postgres default username
+      - PGHOST=postgres       # "postgres" = docker compose service এর নাম
+                              # Docker এর internal DNS — IP লাগে না!
+      - PGDATABASE=postgres   # Default database name
+      - PGPASSWORD=postgres_password  # Postgres service এ যা দিয়েছিলাম
+      - PGPORT=5432           # Postgres এর default port
+```
+
+> 💡 **PGHOST=postgres** — এটা IP address না! এটা service এর নাম।
+> Docker Compose automatically internal DNS বানায়।
+> `postgres` লিখলেই postgres container কে খুঁজে পাবে।
+
+---
+
+## ৬. CLIENT — React Frontend
+
+```yaml
+  client:
+    environment:
+      - WDS_SOCKET_PORT=0
+      # WDS = Webpack Dev Server
+      # Hot reload এর জন্য WebSocket connection দরকার
+      # nginx এর পেছনে থাকায় port নিয়ে confusion হয়
+      # 0 দিলে → current page এর port use করবে (3050)
+      # এটা ছাড়া hot reload কাজ করে না nginx এর পেছনে
+
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./client      # ./client/ folder এ Dockerfile আছে
+
+    volumes:
+      - /home/node/app/node_modules
+      # Container এর node_modules protect করো
+      # Path আলাদা কারণ এই Dockerfile এ WORKDIR /home/node/app
+
+      - ./client:/home/node/app
+      # Local ./client/ → container এর /home/node/app/ sync
+      # React code বদলালে → browser এ সাথে সাথে update (hot reload)
+```
+
+---
+
+## ৭. WORKER — Background Job Processor
+
+```yaml
+  worker:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./worker      # ./worker/ folder এ Dockerfile আছে
+
+    volumes:
+      - /app/node_modules    # node_modules protect
+      - ./worker:/app        # local code sync
+
+    environment:
+      - REDIS_HOST=redis     # Redis service এ connect করো
+      - REDIS_PORT=6379
+
+      # Postgres connection নেই!
+      # Worker শুধু Redis থেকে job নেয় আর result Redis এ রাখে
+      # Database directly access করে না
+```
+
+### Worker কী করে?
+
+```
+Redis Queue:
+  api → "calculate fibonacci(10)" push করলো
+          ↓
+  worker → queue থেকে নিলো
+         → fib(10) calculate করলো
+         → result Redis এ store করলো
+          ↓
+  api → Redis থেকে result নিয়ে client কে দিলো
+```
+
+---
+
+## পুরো Flow একসাথে
+
+```
+তুমি browser এ localhost:3050 খুললে:
+
+1. nginx পেলো request
+   ↓
+2. "/" → client (React app) দিলো
+   "/api" → api (Express) দিলো
+
+3. তুমি "10" submit করলে:
+   client → POST /api/values → nginx → api
+
+4. api:
+   → postgres এ "10" save করলো
+   → redis queue তে "calculate 10" push করলো
+
+5. worker:
+   → redis থেকে "10" পেলো
+   → fib(10) = 55 calculate করলো
+   → redis এ result save করলো
+
+6. client GET /api/values করলে:
+   → api postgres + redis থেকে data নিলো
+   → client কে দিলো
+   → browser এ দেখালো
+```
+
+---
+
+## সব services এক নজরে
+
+| Service | Image/Build | Port | কী করে |
+|---|---|---|---|
+| `postgres` | image | 5432 (internal) | Data store |
+| `redis` | image | 6379 (internal) | Queue & Cache |
+| `nginx` | custom build | **3050:80** | Traffic gateway |
+| `api` | custom build | internal | REST API |
+| `client` | custom build | internal | React UI |
+| `worker` | custom build | internal | Background jobs |
+
+> শুধু **nginx এর port** বাইরে থেকে accessible।
+> বাকি সব internal — Docker network এর ভেতরে কথা বলে।
