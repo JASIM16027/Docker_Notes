@@ -72,7 +72,7 @@ docker compose -f 'docker-compose.yml' down
 
 > 💡 If your file is simply named `docker-compose.yml`, the `-f` flag is optional — Docker Compose picks it up automatically. It's useful when you have multiple files like `docker-compose.prod.yml` or `docker-compose.test.yml`.
 
-
+```yml
 # version: '3'
 # services:
 #   mongodb: #mongodb container name
@@ -127,3 +127,4 @@ services:
 networks:
   mongo-network:
     driver: bridge
+```
